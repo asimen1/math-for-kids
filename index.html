@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b2a3c">
+  <title>חשבון במקלחת</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <main id="settings-screen" class="screen settings">
+    <h1>🛁 חשבון במקלחת</h1>
+    <div id="settings-form"></div>
+    <ul id="warnings" class="warnings"></ul>
+    <p id="settings-error" class="error" role="alert"></p>
+    <button id="start-btn" class="start-btn" type="button">התחל ▶</button>
+  </main>
+
+  <main id="game-screen" class="screen game" hidden>
+    <div class="topbar">
+      <button id="exit-btn" class="icon-btn" type="button" aria-label="חזרה להגדרות">✕</button>
+      <div class="score">
+        <span>✔ <b id="score">0</b></span>
+        <span>🔥 <b id="streak">0</b></span>
+      </div>
+      <span id="mic" class="mic" aria-label="מיקרופון">🎤</span>
+    </div>
+
+    <div id="timer" class="timer" hidden>
+      <div id="timer-fill" class="timer-fill"></div>
+      <span id="timer-text" class="timer-text"></span>
+    </div>
+
+    <div class="problem-area">
+      <div class="problem" dir="ltr">
+        <span id="expr"></span> = <span id="answer-box" class="answer empty">?</span>
+      </div>
+      <div id="status" class="status" aria-live="polite"></div>
+      <div id="heard" class="heard"></div>
+    </div>
+
+    <div class="controls">
+      <button id="repeat-btn" type="button">🔁 חזור</button>
+      <button id="skip-btn" type="button">⏭ דלג</button>
+      <button id="pause-btn" type="button">⏸ עצור</button>
+    </div>
+
+    <div id="numpad" class="numpad" dir="ltr">
+      <button type="button" data-key="1">1</button>
+      <button type="button" data-key="2">2</button>
+      <button type="button" data-key="3">3</button>
+      <button type="button" data-key="4">4</button>
+      <button type="button" data-key="5">5</button>
+      <button type="button" data-key="6">6</button>
+      <button type="button" data-key="7">7</button>
+      <button type="button" data-key="8">8</button>
+      <button type="button" data-key="9">9</button>
+      <button type="button" data-key="back" class="key-fn" aria-label="מחק">⌫</button>
+      <button type="button" data-key="0">0</button>
+      <button type="button" data-key="enter" class="key-ok" aria-label="אישור">✓</button>
+    </div>
+
+    <div id="pause-overlay" class="overlay" hidden>
+      <div class="overlay-title">⏸ הפסקה</div>
+      <p>תגידו <b>המשך</b> או לחצו:</p>
+      <button id="resume-btn" class="start-btn" type="button">המשך ▶</button>
+    </div>
+  </main>
+</body>
+</html>

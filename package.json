@@ -1,0 +1,10 @@
+{
+  "name": "shower-math",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "start": "npx --yes serve -l 8080 .",
+    "icons": "node scripts/make-icons.js"
+  }
+}
