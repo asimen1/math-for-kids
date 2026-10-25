@@ -43,7 +43,7 @@ function multiplication({ min, max }, rand) {
   const top = Math.floor(Math.sqrt(max));
   for (let i = 0; i < 40 && top >= 2; i++) {
     const a = randInt(2, top, rand);
-    const lo = Math.max(Math.ceil(min / a), 0);
+    const lo = Math.max(Math.ceil(min / a), 2);
     const hi = Math.floor(max / a);
     if (lo > hi) continue;
     const b = randInt(lo, hi, rand);

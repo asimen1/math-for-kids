@@ -80,7 +80,8 @@ export async function ensureMicPermission() {
 }
 
 // Android ends recognition after each phrase or a few seconds of silence, so this
-// restarts it for as long as it's active.
+// restarts it right away for as long as it's active. Results are reported while the
+// child is still talking (final: false) so a correct answer is caught as early as possible.
 export class Listener {
   static supported = !!SR;
 
@@ -93,23 +94,32 @@ export class Listener {
     this.rec = null;
     this.restartTimer = null;
     this.sessionError = null;
+    this.session = 0;
+    this.startedAt = 0;
   }
 
   create() {
     const rec = new SR();
     rec.lang = 'he-IL';
     rec.continuous = false;
-    rec.interimResults = false;
-    rec.maxAlternatives = 5;
+    rec.interimResults = true;
+    rec.maxAlternatives = 10;
     rec.onstart = () => {
       this.sessionError = null;
       this.onListening(true);
     };
+    // Each alternative is the whole phrase so far: earlier segments' best guess plus
+    // one of the latest segment's alternatives.
     rec.onresult = (e) => {
-      const result = e.results[e.results.length - 1];
-      if (!result.isFinal) return;
-      const alternatives = Array.from(result, (a) => a.transcript.trim()).filter(Boolean);
-      if (alternatives.length) this.onResult(alternatives);
+      const results = Array.from(e.results);
+      const last = results[results.length - 1];
+      const before = results.slice(0, -1).map((r) => r[0].transcript).join(' ');
+      const alternatives = Array.from(last, (a) => `${before} ${a.transcript}`.trim()).filter(Boolean);
+      if (alternatives.length) {
+        this.onResult({
+          alternatives, final: last.isFinal, session: this.session, startedAt: this.startedAt,
+        });
+      }
     };
     rec.onerror = (e) => {
       this.sessionError = e.error;
@@ -123,7 +133,7 @@ export class Listener {
     rec.onend = () => {
       this.running = false;
       this.onListening(false);
-      if (this.active) this.scheduleStart(this.sessionError === 'network' ? 3000 : 250);
+      if (this.active) this.scheduleStart(this.sessionError === 'network' ? 3000 : 30);
     };
     return rec;
   }
@@ -131,21 +141,26 @@ export class Listener {
   start() {
     if (!SR) return;
     this.active = true;
-    if (!this.running) this.scheduleStart(0);
+    if (!this.running) this.startNow();
+  }
+
+  startNow() {
+    clearTimeout(this.restartTimer);
+    if (!this.active || this.running) return;
+    this.rec ??= this.create();
+    try {
+      this.rec.start();
+      this.running = true;
+      this.session++;
+      this.startedAt = performance.now();
+    } catch {
+      this.scheduleStart(500);
+    }
   }
 
   scheduleStart(delay) {
     clearTimeout(this.restartTimer);
-    this.restartTimer = setTimeout(() => {
-      if (!this.active || this.running) return;
-      this.rec ??= this.create();
-      try {
-        this.rec.start();
-        this.running = true;
-      } catch {
-        this.scheduleStart(1000);
-      }
-    }, delay);
+    this.restartTimer = setTimeout(() => this.startNow(), delay);
   }
 
   stop() {

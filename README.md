@@ -38,8 +38,8 @@ There's no build step: the repo root is the site.
 
 | Say | Action |
 |---|---|
-| a number (e.g. "עשרים ושלוש" or "23") | answer |
-| חזור / שוב | repeat the question |
+| a number (e.g. "עשרים ושלוש" or "23"), alone or inside a sentence | answer |
+| חזור / עוד פעם | repeat the question |
 | דלג | skip (reveals the answer) |
 | עצור | pause |
 | המשך | resume |

@@ -36,11 +36,35 @@ if (!wakeLockSupported) warn('הדפדפן לא תומך בהשארת המסך �
 
 // --- game UI ---
 
+const LOG_ICONS = { correct: '✅', wrong: '❌', command: '🔁', echo: '🔈', ignored: '⏳', unclear: '❓' };
+const LOG_MAX_LINES = 60;
+
+function scrollLog() {
+  const box = $('speech-box');
+  box.scrollTop = box.scrollHeight;
+}
+
+// parts: [[className, text]] – built with textContent, since the text is whatever was heard.
+function addLogLine(className, parts) {
+  const li = document.createElement('li');
+  li.className = className;
+  for (const [cls, text] of parts) {
+    const span = document.createElement('span');
+    span.className = cls;
+    span.textContent = text;
+    li.append(span);
+  }
+  const log = $('speech-log');
+  log.append(li);
+  while (log.children.length > LOG_MAX_LINES) log.firstElementChild.remove();
+  scrollLog();
+}
+
 let flashTimer = null;
 const ui = {
   showProblem(p) {
     $('expr').textContent = p.display;
-    $('heard').textContent = '';
+    addLogLine('log-problem', [['log-text', p.display]]);
   },
   setTyped(value) {
     $('answer-box').textContent = value || '?';
@@ -60,8 +84,21 @@ const ui = {
   setStatus(text) {
     $('status').textContent = text;
   },
-  setHeard(text) {
-    $('heard').textContent = `שמעתי: ${text}`;
+  setLiveHeard(text) {
+    $('speech-live').textContent = text;
+    scrollLog();
+  },
+  logHeard(text, kind, note) {
+    $('speech-live').textContent = '';
+    addLogLine(`log-${kind}`, [
+      ['log-icon', LOG_ICONS[kind]],
+      ['log-text', `"${text}"`],
+      ['log-note', note],
+    ]);
+  },
+  clearLog() {
+    $('speech-log').replaceChildren();
+    $('speech-live').textContent = '';
   },
   setPaused(paused) {
     $('pause-overlay').hidden = !paused;
@@ -110,6 +147,8 @@ async function startGame() {
   showScreen('game');
   history.pushState({ game: true }, '');
   enableWakeLock();
+  ui.clearLog();
+  $('speech-box').hidden = !config.voiceInput;
   game = new Game(config, ui, listener);
   game.start();
 }

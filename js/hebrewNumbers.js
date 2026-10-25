@@ -36,10 +36,13 @@ function isKnown(t) {
     t in PLAIN || t === 'מאות' || t === 'אלפיים' || THOUSAND.has(t) || MILLION.has(t);
 }
 
-// Strip a leading "ו" (and) when the rest is a number word: "ושלוש" → "שלוש".
+// One-letter Hebrew prefixes (and, the, in, to, as, from, that) are stripped when the rest
+// is a number word: "ושלוש" → "שלוש", "בשמונה" → "שמונה".
+const PREFIXES = 'והבלכמש';
+
 function normalizeToken(t) {
   if (isKnown(t)) return t;
-  if (t.length > 1 && t[0] === 'ו' && isKnown(t.slice(1))) return t.slice(1);
+  if (t.length > 2 && PREFIXES.includes(t[0]) && isKnown(t.slice(1))) return t.slice(1);
   return null;
 }
 
@@ -49,6 +52,7 @@ export function tokenize(text) {
     .replace(/[־\-–—]/g, ' ')
     .replace(/[֑-ׇ]/g, '')
     .replace(/[^א-ת0-9\s]/g, ' ')
+    .replace(/([א-ת])(?=\d)|(\d)(?=[א-ת])/g, '$1$2 ')
     .split(/\s+/)
     .filter(Boolean);
 }
@@ -128,4 +132,76 @@ export function parseNumbers(text) {
 export function parseNumber(text) {
   const nums = parseNumbers(text);
   return nums.length ? nums[nums.length - 1] : null;
+}
+
+// --- lenient matching (accents, unusual pronunciation) ---
+
+const FINAL_FORMS = { 'ך': 'כ', 'ם': 'מ', 'ן': 'נ', 'ף': 'פ', 'ץ': 'צ' };
+const SOUND_ALIKE = { 'ע': 'א', 'ה': 'א', 'ט': 'ת', 'ק': 'כ', 'ס': 'ש' };
+
+// Collapses letters that sound alike and drops vowel letters after the first,
+// so "שמונא" and "שמונה" (or "סבע" and "שבע") get the same key.
+function soundKey(word) {
+  const k = Array.from(word, (c) => {
+    const base = FINAL_FORMS[c] ?? c;
+    return SOUND_ALIKE[base] ?? base;
+  }).join('');
+  return k[0] + k.slice(1).replace(/[וי]/g, '');
+}
+
+const VOCAB = [
+  ...Object.keys(UNITS), ...Object.keys(CONSTRUCT), ...TEN, ...Object.keys(TENS),
+  ...Object.keys(PLAIN), 'מאות', 'אלפיים', ...THOUSAND, ...MILLION,
+];
+
+// soundKey → word, dropping keys shared by words that mean different things.
+const BY_KEY = new Map();
+for (const word of VOCAB) {
+  const key = soundKey(word);
+  const value = parseNumbers(word)[0] ?? word;
+  const prev = BY_KEY.get(key);
+  if (prev === undefined) BY_KEY.set(key, { word, value });
+  else if (prev && prev.value !== value) BY_KEY.set(key, null);
+}
+const KEYS = [...BY_KEY.entries()].filter(([, entry]) => entry);
+
+function withinOneEdit(a, b) {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      i++;
+      j++;
+      continue;
+    }
+    if (++edits > 1) return false;
+    if (a.length > b.length) i++;
+    else if (b.length > a.length) j++;
+    else {
+      i++;
+      j++;
+    }
+  }
+  return edits + (a.length - i) + (b.length - j) <= 1;
+}
+
+function lenientWord(token) {
+  if (/^\d+$/.test(token) || normalizeToken(token) !== null) return token;
+  const candidates = token.length > 2 && PREFIXES.includes(token[0]) ? [token, token.slice(1)] : [token];
+  for (const t of candidates) {
+    const key = soundKey(t);
+    if (BY_KEY.get(key)) return BY_KEY.get(key).word;
+    if (key.length < 3) continue;
+    const near = KEYS.filter(([k]) => withinOneEdit(k, key));
+    if (near.length === 1) return near[0][1].word;
+  }
+  return token;
+}
+
+// Like parseNumbers, but first maps near-miss words to the closest number word.
+// Only used to confirm a correct answer: it's too loose to declare an answer wrong.
+export function parseNumbersLenient(text) {
+  return parseNumbers(tokenize(text).map(lenientWord).join(' '));
 }

@@ -19,6 +19,7 @@ export function defaultSettings() {
     ops: { add: op(true), sub: op(true), mul: op(false), div: op(false) },
     timer: { enabled: false, preset: '30', seconds: 45 },
     voiceInput: true,
+    listenWhileSpeaking: true,
     speechRate: SPEECH_RATE.default,
   };
 }
@@ -31,6 +32,9 @@ export function loadSettings() {
     for (const { id } of OPS) defaults.ops[id] = { ...defaults.ops[id], ...saved.ops?.[id] };
     defaults.timer = { ...defaults.timer, ...saved.timer };
     if (typeof saved.voiceInput === 'boolean') defaults.voiceInput = saved.voiceInput;
+    if (typeof saved.listenWhileSpeaking === 'boolean') {
+      defaults.listenWhileSpeaking = saved.listenWhileSpeaking;
+    }
     if (saved.speechRate >= SPEECH_RATE.min && saved.speechRate <= SPEECH_RATE.max) {
       defaults.speechRate = saved.speechRate;
     }
@@ -78,6 +82,7 @@ export function toGameConfig(settings) {
       .map(({ id }) => ({ id, ...opRange(settings.ops[id]) })),
     timerSeconds: settings.timer.enabled ? timerSeconds(settings.timer) : null,
     voiceInput: settings.voiceInput,
+    listenWhileSpeaking: settings.listenWhileSpeaking,
   };
 }
 
@@ -130,7 +135,7 @@ function timerCard(timer) {
     </div>`;
 }
 
-function voiceCard(voiceInput) {
+function voiceCard(voiceInput, listenWhileSpeaking) {
   return `
     <div class="card ${voiceInput ? 'on' : ''}">
       <label class="switch-row">
@@ -138,7 +143,14 @@ function voiceCard(voiceInput) {
         <span class="op-label">תשובות בקול</span>
         <input type="checkbox" data-field="voice" ${voiceInput ? 'checked' : ''}>
       </label>
-      <p class="hint" ${voiceInput ? '' : 'hidden'}>אפשר לומר את התשובה, או: <b>חזור</b> · <b>דלג</b> · <b>עצור</b> · <b>המשך</b></p>
+      <div class="op-body" ${voiceInput ? '' : 'hidden'}>
+        <p class="hint">אפשר לומר את התשובה (גם בתוך משפט), או: <b>חזור</b> · <b>דלג</b> · <b>עצור</b> · <b>המשך</b></p>
+        <label class="sub-row">
+          <span>להקשיב גם בזמן שהאפליקציה מדברת</span>
+          <input type="checkbox" data-field="listen-early" ${listenWhileSpeaking ? 'checked' : ''}>
+        </label>
+        <p class="hint">עונים מהר יותר בלי לחכות לסוף השאלה. אם הרמקול בבלוטות׳ נשמע רע – לכבות.</p>
+      </div>
     </div>`;
 }
 
@@ -163,7 +175,7 @@ function speechRateCard(rate) {
 export function renderSettings(root, settings, onChange) {
   const render = () => {
     root.innerHTML = OPS.map((op) => opCard(op, settings.ops[op.id])).join('') +
-      timerCard(settings.timer) + voiceCard(settings.voiceInput) + speechRateCard(settings.speechRate);
+      timerCard(settings.timer) + voiceCard(settings.voiceInput, settings.listenWhileSpeaking) + speechRateCard(settings.speechRate);
   };
   const changed = (rerender) => {
     onChange(settings);
@@ -188,6 +200,7 @@ export function renderSettings(root, settings, onChange) {
     if (el.dataset.field === 'enabled') settings.ops[el.dataset.op].enabled = el.checked;
     else if (el.dataset.field === 'timer') settings.timer.enabled = el.checked;
     else if (el.dataset.field === 'voice') settings.voiceInput = el.checked;
+    else if (el.dataset.field === 'listen-early') settings.listenWhileSpeaking = el.checked;
     changed(true);
   });
 

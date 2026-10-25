@@ -141,6 +141,21 @@ button {
   accent-color: var(--accent);
 }
 
+.sub-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 17px;
+}
+.sub-row input {
+  margin-inline-start: auto;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  accent-color: var(--accent);
+}
+
 .hint {
   margin: 8px 0 0;
   color: var(--muted);
@@ -283,12 +298,66 @@ button {
   font-size: 20px;
   color: var(--muted);
 }
-.heard {
-  min-height: 1.2em;
-  font-size: 16px;
-  color: var(--muted);
-  opacity: 0.8;
+/* Live log of what the microphone heard and what the app made of it. */
+.speech-box {
+  align-self: stretch;
+  margin-top: 12px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: var(--surface);
+  height: 9.5em;
+  overflow-y: auto;
+  font-size: 15px;
+  text-align: start;
 }
+.speech-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.speech-log li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+}
+.speech-log .log-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.speech-log .log-note {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.speech-log .log-problem {
+  direction: ltr; /* keep "7 + 5" from being flipped in the RTL page */
+  justify-content: center;
+  color: var(--muted);
+  font-size: 13px;
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+  padding-top: 4px;
+}
+.speech-log .log-problem .log-text { flex: none; }
+.speech-log .log-problem:first-child {
+  border-top: 0;
+  margin-top: 0;
+}
+.log-correct .log-note { color: var(--good); }
+.log-wrong .log-note { color: var(--bad); }
+.log-command .log-note { color: var(--accent); }
+.log-echo .log-text,
+.log-ignored .log-text { opacity: 0.55; }
+.speech-live {
+  min-height: 1.4em;
+  color: var(--muted);
+  font-style: italic;
+}
+.speech-live:not(:empty)::before { content: "🎤 "; }
 
 .controls {
   display: flex;

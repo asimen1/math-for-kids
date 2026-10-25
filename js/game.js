@@ -2,20 +2,26 @@
 // Every transition bumps `seq`; async steps check it so stale continuations stop.
 
 import { generateProblem } from './generator.js';
-import { parseNumber } from './hebrewNumbers.js';
+import { parseNumbers } from './hebrewNumbers.js';
 import { parseCommand } from './commands.js';
+import { matchAnswer } from './answerMatcher.js';
 import { speak, cancelSpeech } from './speech.js';
 import * as sounds from './sounds.js';
 
 const PRAISE = ['כל הכבוד!', 'מצוין!', 'נכון מאוד!', 'יפה מאוד!', 'בדיוק!', 'אלופים!'];
 const TICK_FROM_SEC = 5;
 const MAX_DIGITS = 7;
+// How long after the app stops talking its own words may still show up in a result.
+const ECHO_GRACE_MS = 2500;
+
+const COMMAND_NAMES = { repeat: 'חזור', skip: 'דלג', pause: 'עצור', resume: 'המשך' };
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export class Game {
-  // config: { ops: [{ id, min, max }], timerSeconds: number|null, voiceInput: boolean }
+  // config: { ops: [{ id, min, max }], timerSeconds: number|null, voiceInput: boolean,
+  //           listenWhileSpeaking: boolean }
   constructor(config, ui, listener) {
     this.config = config;
     this.ui = ui;
@@ -31,6 +37,14 @@ export class Game {
     this.remaining = 0;
     this.timerId = null;
     this.lastTick = null;
+    this.echoes = []; // [{ numbers, until }] – numbers the app said recently
+    this.usedSession = null; // recognition session that already produced a verdict
+    this.speaking = false;
+    this.lastSpeechEnd = 0;
+  }
+
+  get listenEarly() {
+    return this.config.voiceInput && this.config.listenWhileSpeaking;
   }
 
   start() {
@@ -61,8 +75,9 @@ export class Game {
   async ask() {
     const s = ++this.seq;
     this.state = 'speaking';
-    this.listener.stop();
-    await speak(this.problem.speech);
+    if (this.listenEarly) this.listener.start();
+    else this.listener.stop();
+    await this.say(this.problem.speech);
     if (s !== this.seq) return;
     this.listen();
   }
@@ -71,6 +86,23 @@ export class Game {
     this.state = 'waiting';
     if (this.timerMs) this.startTimer();
     if (this.config.voiceInput) this.listener.start();
+  }
+
+  // Speaks and remembers the numbers said, so the mic hearing the app isn't taken as an answer.
+  async say(text) {
+    const echo = { numbers: parseNumbers(text), until: Infinity };
+    this.echoes.push(echo);
+    this.speaking = true;
+    await speak(text);
+    this.speaking = false;
+    this.lastSpeechEnd = performance.now();
+    echo.until = this.lastSpeechEnd + ECHO_GRACE_MS;
+  }
+
+  activeEcho() {
+    const now = performance.now();
+    this.echoes = this.echoes.filter((e) => e.until > now);
+    return this.echoes.flatMap((e) => e.numbers);
   }
 
   // --- answers ---
@@ -96,12 +128,13 @@ export class Game {
     this.ui.flash('correct');
     await sounds.playCorrect();
     if (s !== this.seq) return;
-    await speak(pick(PRAISE));
+    await this.say(pick(PRAISE));
     if (s !== this.seq) return;
     this.next();
   }
 
-  // The problem stays; the timer keeps running.
+  // The problem stays and the timer keeps running. The child may answer again
+  // while the feedback is still being spoken.
   async wrong(value) {
     const s = this.beginFeedback();
     this.streak = 0;
@@ -110,9 +143,10 @@ export class Game {
     this.ui.flash('wrong');
     await sounds.playWrong();
     if (s !== this.seq) return;
-    await speak(`${value} זה לא נכון. נסו שוב`);
-    if (s !== this.seq) return;
+    this.state = 'speaking';
     this.setTyped('');
+    await this.say(`${value} זה לא נכון. נסו שוב`);
+    if (s !== this.seq) return;
     this.listen();
   }
 
@@ -134,17 +168,18 @@ export class Game {
     this.ui.flash('timeout');
     if (sound) await sound();
     if (s !== this.seq) return;
-    await speak(text);
+    await this.say(text);
     if (s !== this.seq) return;
     await wait(700);
     if (s !== this.seq) return;
     this.next();
   }
 
+  // In listen-while-speaking mode the mic stays on; results are ignored until answering resumes.
   beginFeedback() {
     const s = ++this.seq;
     this.state = 'feedback';
-    this.listener.stop();
+    if (!this.listenEarly) this.listener.stop();
     cancelSpeech();
     return s;
   }
@@ -160,11 +195,11 @@ export class Game {
     const s = ++this.seq;
     this.state = 'paused';
     this.stopTimer();
-    this.listener.stop();
+    this.listener.stop(); // so the mic doesn't hear "המשך" in the message below
     cancelSpeech();
     this.ui.setPaused(true);
     if (silent) return;
-    speak('עצרנו. כדי להמשיך תגידו המשך').then(() => {
+    this.say('עצרנו. כדי להמשיך תגידו המשך').then(() => {
       if (s === this.seq) this.listenForResume();
     });
   }
@@ -182,25 +217,61 @@ export class Game {
 
   // --- voice ---
 
-  onVoice(alternatives) {
-    this.ui.setHeard(alternatives[0]);
+  // Called for partial results while the child talks (final: false) and once at the end.
+  // A correct answer is accepted as soon as it shows up; anything else waits for the final.
+  // A phrase recorded while the app was talking may contain a misheard echo of it, so it
+  // can confirm a correct answer but never count as a wrong one.
+  // Every outcome goes to the on-screen speech log, so it's clear what was heard and why.
+  onVoice({ alternatives, final, session, startedAt }) {
+    if (session === this.usedSession) return;
+    const text = alternatives[0];
+    if (!final) this.ui.setLiveHeard(text);
+    const log = (kind, note) => this.ui.logHeard(text, kind, note);
+
     if (this.state === 'paused') {
-      if (alternatives.some((a) => parseCommand(a) === 'resume')) this.resume();
+      if (!final) return;
+      if (alternatives.some((a) => parseCommand(a) === 'resume')) {
+        log('command', COMMAND_NAMES.resume);
+        return this.resume();
+      }
+      return log('ignored', 'בהפסקה');
+    }
+    if (!this.canAnswer()) {
+      if (final) log('ignored', 'בזמן משוב – לא נספר');
       return;
     }
-    if (this.state !== 'waiting') return;
 
-    const numbers = alternatives.map(parseNumber);
-    if (numbers.includes(this.problem.answer)) return this.correct();
+    const match = matchAnswer(alternatives, this.problem.answer, {
+      echo: this.activeEcho(),
+      final,
+    });
+    if (match.verdict === 'correct') {
+      this.usedSession = session;
+      log('correct', match.lenient ? 'נכון (התאמה גמישה)' : 'נכון');
+      return this.correct();
+    }
+    if (!final) return;
 
     const command = alternatives.map(parseCommand).find(Boolean);
+    if (command) {
+      this.usedSession = session;
+      log('command', COMMAND_NAMES[command]);
+    }
     if (command === 'repeat') return this.repeat();
     if (command === 'skip') return this.skip();
     if (command === 'pause') return this.pause();
 
-    const heard = numbers.find((n) => n !== null);
-    if (heard !== undefined) return this.wrong(heard);
-    this.ui.setStatus('לא הבנתי 🤔');
+    if (match.verdict === 'wrong') {
+      if (this.speaking || startedAt < this.lastSpeechEnd) {
+        return log('echo', `${match.number} – נשמע בזמן שהאפליקציה דיברה, לא נספר`);
+      }
+      this.usedSession = session;
+      log('wrong', `לא נכון (${match.number})`);
+      return this.wrong(match.number);
+    }
+    if (match.echoOnly) return log('echo', 'קול האפליקציה');
+    log('unclear', 'לא נמצא מספר');
+    if (this.state === 'waiting') this.ui.setStatus('לא הבנתי 🤔');
   }
 
   // --- keypad ---
