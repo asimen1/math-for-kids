@@ -7,55 +7,73 @@ const RANGES = [
   { min: 0, max: 100 },
   { min: 0, max: 1000 },
   { min: 5, max: 7 },
+  { min: 50, max: 100 },
   { min: 0, max: 0 },
   { min: 13, max: 13 },
+  { min: 97, max: 97 },
 ];
 const N = 2000;
+const OPS = ['add', 'sub', 'mul', 'div'];
 
 const inRange = (v, { min, max }) => v >= min && v <= max;
 
-test('addition and multiplication operands stay in range', () => {
+test('the answer is always inside the range, for every op', () => {
   for (const range of RANGES) {
-    for (let i = 0; i < N; i++) {
-      for (const op of ['add', 'mul']) {
+    for (const op of OPS) {
+      for (let i = 0; i < N; i++) {
         const p = createProblem(op, range);
-        assert.ok(inRange(p.a, range) && inRange(p.b, range), JSON.stringify({ op, range, p }));
-        assert.equal(p.answer, op === 'add' ? p.a + p.b : p.a * p.b);
+        assert.ok(inRange(p.answer, range), JSON.stringify({ op, range, p }));
+        assert.ok(Number.isInteger(p.answer), JSON.stringify({ op, range, p }));
+        assert.ok(p.a >= 0 && p.b >= 0, JSON.stringify({ op, range, p }));
       }
     }
   }
 });
 
-test('subtraction never goes negative', () => {
-  for (const range of RANGES) {
-    for (let i = 0; i < N; i++) {
-      const p = createProblem('sub', range);
-      assert.ok(inRange(p.a, range) && inRange(p.b, range));
-      assert.ok(p.answer >= 0);
-      assert.equal(p.answer, p.a - p.b);
-    }
-  }
-});
-
-test('division is exact, divisor ≥ 1, dividend in range', () => {
-  for (const range of RANGES) {
-    for (let i = 0; i < N; i++) {
-      const p = createProblem('div', range);
-      assert.ok(p.b >= 1, JSON.stringify({ range, p }));
-      assert.ok(inRange(p.a, range), JSON.stringify({ range, p }));
-      assert.ok(Number.isInteger(p.answer));
-      assert.equal(p.answer * p.b, p.a);
-    }
-  }
-});
-
-test('division usually avoids trivial divisors when possible', () => {
-  let trivial = 0;
+test('answers match the operation', () => {
   for (let i = 0; i < N; i++) {
-    const p = createProblem('div', { min: 0, max: 100 });
-    if (p.b === 1 || p.b === p.a) trivial++;
+    const range = RANGES[i % RANGES.length];
+    const add = createProblem('add', range);
+    assert.equal(add.answer, add.a + add.b);
+    const sub = createProblem('sub', range);
+    assert.equal(sub.answer, sub.a - sub.b);
+    const mul = createProblem('mul', range);
+    assert.equal(mul.answer, mul.a * mul.b);
+    const div = createProblem('div', range);
+    assert.ok(div.b >= 1);
+    assert.equal(div.answer * div.b, div.a);
   }
-  assert.ok(trivial < N * 0.02, `trivial: ${trivial}`);
+});
+
+test('addition and subtraction numbers stay within max', () => {
+  for (const range of RANGES) {
+    for (let i = 0; i < N; i++) {
+      for (const op of ['add', 'sub']) {
+        const p = createProblem(op, range);
+        assert.ok(p.a <= range.max && p.b <= range.max, JSON.stringify({ op, range, p }));
+      }
+    }
+  }
+});
+
+test('division dividend stays within max when the range starts at 0', () => {
+  for (const max of [10, 100, 1000]) {
+    for (let i = 0; i < N; i++) {
+      const p = createProblem('div', { min: 0, max });
+      assert.ok(p.a <= max, JSON.stringify(p));
+    }
+  }
+});
+
+test('multiplication and division mostly avoid trivial problems', () => {
+  for (const op of ['mul', 'div']) {
+    let trivial = 0;
+    for (let i = 0; i < N; i++) {
+      const p = createProblem(op, { min: 0, max: 100 });
+      if (p.a <= 1 || p.b <= 1 || (op === 'div' && p.a === p.b)) trivial++;
+    }
+    assert.ok(trivial < N * 0.2, `${op} trivial: ${trivial}`);
+  }
 });
 
 test('generateProblem uses only enabled ops and avoids immediate repeats', () => {
@@ -70,7 +88,7 @@ test('generateProblem uses only enabled ops and avoids immediate repeats', () =>
 });
 
 test('speech text uses Hebrew operation words', () => {
-  assert.match(createProblem('add', { min: 1, max: 1 }).speech, /^כמה זה 1 ועוד 1\?$/);
+  assert.match(createProblem('add', { min: 0, max: 0 }).speech, /^כמה זה 0 ועוד 0\?$/);
   assert.match(createProblem('sub', { min: 1, max: 1 }).speech, /פחות/);
   assert.match(createProblem('mul', { min: 1, max: 1 }).speech, /כפול/);
   assert.match(createProblem('div', { min: 6, max: 6 }).speech, /חלקי/);
