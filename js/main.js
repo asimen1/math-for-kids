@@ -192,4 +192,10 @@ document.addEventListener('visibilitychange', () => {
   else game.listenForResume();
 });
 
+// The version shown on the settings screen comes from package.json.
+fetch('package.json')
+  .then((res) => res.json())
+  .then(({ version }) => { $('app-version').textContent = `גרסה ${version}`; })
+  .catch(() => {});
+
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');

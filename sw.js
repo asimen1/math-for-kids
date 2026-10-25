@@ -1,11 +1,12 @@
 // Network-first service worker: always tries to fetch the latest version (so updates
 // arrive on the next launch) and falls back to the cache when offline.
 
-const CACHE = 'shower-math-v3';
+const CACHE = 'shower-math-v4';
 const SHELL = [
   './',
   'index.html',
   'manifest.webmanifest',
+  'package.json',
   'css/style.css',
   'js/main.js',
   'js/settings.js',
