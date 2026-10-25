@@ -5,14 +5,15 @@ import { generateProblem } from './generator.js';
 import { parseNumbers } from './hebrewNumbers.js';
 import { parseCommand } from './commands.js';
 import { matchAnswer } from './answerMatcher.js';
+import { EchoGrace } from './echoGrace.js';
 import { speak, cancelSpeech } from './speech.js';
 import * as sounds from './sounds.js';
 
 const PRAISE = ['כל הכבוד!', 'מצוין!', 'נכון מאוד!', 'יפה מאוד!', 'בדיוק!', 'אלופים!'];
 const TICK_FROM_SEC = 5;
 const MAX_DIGITS = 7;
-// How long after the app stops talking its own words may still show up in a result.
-const ECHO_GRACE_MS = 2500;
+// How long the app's past utterances are kept for measuring how late their echo arrives.
+const ECHO_LOOKBACK_MS = 10000;
 
 const COMMAND_NAMES = { repeat: 'חזור', skip: 'דלג', pause: 'עצור', resume: 'המשך' };
 
@@ -37,7 +38,8 @@ export class Game {
     this.remaining = 0;
     this.timerId = null;
     this.lastTick = null;
-    this.echoes = []; // [{ numbers, until }] – numbers the app said recently
+    this.echoes = []; // [{ numbers, endedAt }] – numbers the app said recently (endedAt null while talking)
+    this.echoGrace = new EchoGrace(); // how long after speech its echo may still show up
     this.usedSession = null; // recognition session that already produced a verdict
     this.speaking = false;
     this.lastSpeechEnd = 0;
@@ -90,19 +92,40 @@ export class Game {
 
   // Speaks and remembers the numbers said, so the mic hearing the app isn't taken as an answer.
   async say(text) {
-    const echo = { numbers: parseNumbers(text), until: Infinity };
+    const now = performance.now();
+    this.echoes = this.echoes.filter((e) => e.endedAt === null || now - e.endedAt < ECHO_LOOKBACK_MS);
+    const echo = { numbers: parseNumbers(text), endedAt: null };
     this.echoes.push(echo);
     this.speaking = true;
     await speak(text);
     this.speaking = false;
     this.lastSpeechEnd = performance.now();
-    echo.until = this.lastSpeechEnd + ECHO_GRACE_MS;
+    echo.endedAt = this.lastSpeechEnd;
   }
 
+  // Numbers from utterances still being spoken or that ended less than the grace ago.
   activeEcho() {
     const now = performance.now();
-    this.echoes = this.echoes.filter((e) => e.until > now);
-    return this.echoes.flatMap((e) => e.numbers);
+    const grace = this.echoGrace.ms;
+    return this.echoes
+      .filter((e) => e.endedAt === null || now - e.endedAt < grace)
+      .flatMap((e) => e.numbers);
+  }
+
+  // Teaches the echo grace from a final result: if a recognition session that was already
+  // recording while the app spoke still contains numbers the app said, the delay since that
+  // speech ended is how late echoes can arrive. Returns the delay, or null.
+  measureEcho(text, startedAt) {
+    const heard = parseNumbers(text);
+    if (!heard.length) return null;
+    const now = performance.now();
+    let delay = null;
+    for (const e of this.echoes) {
+      if (e.endedAt === null || startedAt >= e.endedAt) continue;
+      if (e.numbers.some((n) => heard.includes(n))) delay = Math.max(delay ?? 0, now - e.endedAt);
+    }
+    if (delay !== null) this.echoGrace.observe(delay);
+    return delay;
   }
 
   // --- answers ---
@@ -223,8 +246,9 @@ export class Game {
   // can confirm a correct answer but never count as a wrong one.
   // Every outcome goes to the on-screen speech log, so it's clear what was heard and why.
   onVoice({ alternatives, final, session, startedAt }) {
-    if (session === this.usedSession) return;
     const text = alternatives[0];
+    const echoDelay = final ? this.measureEcho(text, startedAt) : null;
+    if (session === this.usedSession) return;
     if (!final) this.ui.setLiveHeard(text);
     const log = (kind, note) => this.ui.logHeard(text, kind, note);
 
@@ -269,7 +293,10 @@ export class Game {
       log('wrong', `לא נכון (${match.number})`);
       return this.wrong(match.number);
     }
-    if (match.echoOnly) return log('echo', 'קול האפליקציה');
+    if (match.echoOnly) {
+      const late = echoDelay === null ? '' : ` · ${(echoDelay / 1000).toFixed(1)} שנ׳ אחרי`;
+      return log('echo', `קול האפליקציה${late} · השהיה ${(this.echoGrace.ms / 1000).toFixed(1)} שנ׳`);
+    }
     log('unclear', 'לא נמצא מספר');
     if (this.state === 'waiting') this.ui.setStatus('לא הבנתי 🤔');
   }

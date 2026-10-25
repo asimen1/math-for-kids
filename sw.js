@@ -1,7 +1,7 @@
 // Network-first service worker: always tries to fetch the latest version (so updates
 // arrive on the next launch) and falls back to the cache when offline.
 
-const CACHE = 'shower-math-v2';
+const CACHE = 'shower-math-v3';
 const SHELL = [
   './',
   'index.html',
@@ -14,6 +14,7 @@ const SHELL = [
   'js/hebrewNumbers.js',
   'js/commands.js',
   'js/answerMatcher.js',
+  'js/echoGrace.js',
   'js/speech.js',
   'js/sounds.js',
   'js/wakelock.js',
