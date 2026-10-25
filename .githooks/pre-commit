@@ -1,0 +1,25 @@
+#!/bin/sh
+# Bumps the patch version in package.json (0.1.0 → 0.1.1) on every commit, so the version
+# shown in the app always changes with the code. Skipped when the commit already changes
+# the version (e.g. a manual 0.2.0 bump). Enable once per clone:
+#   git config core.hooksPath .githooks
+set -e
+
+if git diff --cached -U0 -- package.json | grep -q '^[+-][[:space:]]*"version"'; then
+  exit 0
+fi
+
+if ! git diff --quiet -- package.json; then
+  echo "pre-commit: package.json has unstaged changes; stage or stash them so the version can be bumped." >&2
+  exit 1
+fi
+
+node -e '
+const fs = require("fs");
+const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+const [major, minor, patch] = pkg.version.split(".").map(Number);
+pkg.version = `${major}.${minor}.${patch + 1}`;
+fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+console.log(`pre-commit: version bumped to ${pkg.version}`);
+'
+git add package.json
