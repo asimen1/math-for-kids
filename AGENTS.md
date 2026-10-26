@@ -18,4 +18,6 @@ Shower Math (חשבון במקלחת) is a Hebrew math-practice PWA for Android.
 
 - All user-facing text is Hebrew. Keep math expressions left-to-right inside the RTL page (`dir="ltr"`).
 - When you add a file under `js/`, also add it to `SHELL` in `sw.js` and bump `CACHE` there.
+- `vendor/` holds third-party runtime files, served cache-first. Don't edit them, except for the patch documented in each folder's README. A new version goes in a new versioned folder.
+- On-device speech: the model's revision is pinned in `js/modelStore.js`. Changing the model means changing `CACHE` there too.
 - Commit or push only when asked.

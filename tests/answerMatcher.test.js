@@ -70,3 +70,15 @@ test('lenient parsing handles sound-alike spellings', () => {
   assert.deepEqual(parseNumbersLenient('חמישא'), [5]);
   assert.deepEqual(parseNumbersLenient('שלום'), []);
 });
+
+test('ס is treated as ש in every position', () => {
+  assert.deepEqual(parseNumbers('סבע'), [7]);
+  assert.deepEqual(parseNumbers('סלוס'), [3]);
+  assert.deepEqual(parseNumbers('עסרים וסתיים'), [22]);
+  assert.deepEqual(parseNumbers('סלוס עסרה'), [13]);
+  assert.deepEqual(parseNumbers('וסמונה'), [8]);
+  assert.deepEqual(parseNumbers('סס'), [6]);
+  // Strict now, so a wrong answer said with ס still counts as wrong.
+  assert.equal(matchAnswer(['סבע'], 8, { final: true }).verdict, 'wrong');
+  assert.equal(matchAnswer(['זה סמונה'], 8).verdict, 'correct');
+});

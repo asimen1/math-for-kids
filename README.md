@@ -44,9 +44,18 @@ There's no build step: the repo root is the site.
 | עצור | pause |
 | המשך | resume |
 
+## Speech recognition
+
+Two engines, chosen in the settings:
+
+- **On-device (default):** the app records the microphone itself and decodes it in a Web Worker with [ivrit.ai's Hebrew streaming Zipformer2 model](https://huggingface.co/ivrit-ai/zipformer2-66m-streaming-he) (CC BY 4.0), running on [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) WebAssembly (`vendor/`).
+  - It has no speech gate, so it hears quiet voices too. There's no beep and no restart gap.
+  - The model (~73 MB) downloads once from Hugging Face and is kept in the browser's Cache Storage. After that it works offline.
+  - Code: `js/localSpeech.js` (mic + worker), `js/asrWorker.js` (recognizer, phrase splitting), `js/micWorklet.js` (audio capture), `js/modelStore.js` (download/cache).
+- **Google:** Chrome's built-in Web Speech recognition. It needs internet.
+
 ## Notes
 
-- Speech recognition uses Google's online service, so it needs internet.
-- Android plays a short beep each time listening restarts. The browser doesn't let the app turn this off.
+- With the Google engine, Android plays a short beep each time listening restarts, and the browser doesn't let the app turn it off. The on-device engine has no beep.
 - The microphone is turned off while the app speaks, so it doesn't hear itself.
 - Leaving the app (home button or screen off) pauses the game. Say **המשך** or tap the button to resume.

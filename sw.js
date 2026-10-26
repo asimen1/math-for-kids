@@ -1,7 +1,11 @@
 // Network-first service worker: always tries to fetch the latest version (so updates
-// arrive on the next launch) and falls back to the cache when offline.
+// arrive on the next launch) and falls back to the cache when offline. The vendored
+// speech toolkit never changes under its versioned path, so it's served cache-first.
+// The speech model has its own cache (modelStore.js), which updates here must not delete.
 
-const CACHE = 'shower-math-v4';
+const CACHE = 'shower-math-v5';
+const VENDOR_CACHE = 'shower-math-vendor-v1';
+const OWN_CACHES = /^shower-math-v\d+$/;
 const SHELL = [
   './',
   'index.html',
@@ -16,6 +20,10 @@ const SHELL = [
   'js/commands.js',
   'js/answerMatcher.js',
   'js/echoGrace.js',
+  'js/localSpeech.js',
+  'js/modelStore.js',
+  'js/asrWorker.js',
+  'js/micWorklet.js',
   'js/speech.js',
   'js/sounds.js',
   'js/wakelock.js',
@@ -30,13 +38,24 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => OWN_CACHES.test(k) && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
 
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
+  const url = new URL(e.request.url);
+  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  if (url.pathname.includes('/vendor/')) {
+    e.respondWith(caches.open(VENDOR_CACHE).then(async (c) => {
+      const hit = await c.match(e.request);
+      if (hit) return hit;
+      const res = await fetch(e.request);
+      if (res.ok) c.put(e.request, res.clone());
+      return res;
+    }));
+    return;
+  }
   e.respondWith(
     fetch(e.request)
       .then((res) => {

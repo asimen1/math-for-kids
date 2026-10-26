@@ -20,6 +20,9 @@ export function defaultSettings() {
     timer: { enabled: false, preset: '30', seconds: 45 },
     voiceInput: true,
     listenWhileSpeaking: true,
+    speechEngine: 'local', // 'local' (on-device model) | 'google' (Chrome's recognizer)
+    echoCancellation: true,
+    noiseSuppression: true,
     speechRate: SPEECH_RATE.default,
   };
 }
@@ -34,6 +37,10 @@ export function loadSettings() {
     if (typeof saved.voiceInput === 'boolean') defaults.voiceInput = saved.voiceInput;
     if (typeof saved.listenWhileSpeaking === 'boolean') {
       defaults.listenWhileSpeaking = saved.listenWhileSpeaking;
+    }
+    if (['local', 'google'].includes(saved.speechEngine)) defaults.speechEngine = saved.speechEngine;
+    for (const key of ['echoCancellation', 'noiseSuppression']) {
+      if (typeof saved[key] === 'boolean') defaults[key] = saved[key];
     }
     if (saved.speechRate >= SPEECH_RATE.min && saved.speechRate <= SPEECH_RATE.max) {
       defaults.speechRate = saved.speechRate;
@@ -83,6 +90,8 @@ export function toGameConfig(settings) {
     timerSeconds: settings.timer.enabled ? timerSeconds(settings.timer) : null,
     voiceInput: settings.voiceInput,
     listenWhileSpeaking: settings.listenWhileSpeaking,
+    speechEngine: settings.speechEngine,
+    mic: { echoCancellation: settings.echoCancellation, noiseSuppression: settings.noiseSuppression },
   };
 }
 
@@ -135,7 +144,15 @@ function timerCard(timer) {
     </div>`;
 }
 
-function voiceCard(voiceInput, listenWhileSpeaking) {
+const checkRow = (field, label, on) => `
+        <label class="sub-row">
+          <span>${label}</span>
+          <input type="checkbox" data-field="${field}" ${on ? 'checked' : ''}>
+        </label>`;
+
+function voiceCard(settings) {
+  const { voiceInput, listenWhileSpeaking, speechEngine } = settings;
+  const local = speechEngine === 'local';
   return `
     <div class="card ${voiceInput ? 'on' : ''}">
       <label class="switch-row">
@@ -145,6 +162,15 @@ function voiceCard(voiceInput, listenWhileSpeaking) {
       </label>
       <div class="op-body" ${voiceInput ? '' : 'hidden'}>
         <p class="hint">אפשר לומר את התשובה (גם בתוך משפט), או: <b>חזור</b> · <b>דלג</b> · <b>עצור</b> · <b>המשך</b></p>
+        <div class="seg engine-seg">
+          <button type="button" class="seg-btn" data-engine="local" ${pressed(local)}>זיהוי על המכשיר</button>
+          <button type="button" class="seg-btn" data-engine="google" ${pressed(!local)}>זיהוי של Google</button>
+        </div>
+        <p class="hint">${local
+    ? 'מודל עברית שרץ בטלפון (ivrit.ai): שומע גם דיבור שקט, בלי צפצופים. הורדה חד־פעמית של כ־73MB.'
+    : 'זיהוי הדיבור המובנה של Chrome. דורש אינטרנט.'}</p>
+        ${local ? checkRow('echo', 'סינון הקול של האפליקציה (ביטול הד)', settings.echoCancellation) : ''}
+        ${local ? checkRow('noise', 'סינון רעשי רקע', settings.noiseSuppression) : ''}
         <label class="sub-row">
           <span>להקשיב גם בזמן שהאפליקציה מדברת</span>
           <input type="checkbox" data-field="listen-early" ${listenWhileSpeaking ? 'checked' : ''}>
@@ -175,7 +201,7 @@ function speechRateCard(rate) {
 export function renderSettings(root, settings, onChange) {
   const render = () => {
     root.innerHTML = OPS.map((op) => opCard(op, settings.ops[op.id])).join('') +
-      timerCard(settings.timer) + voiceCard(settings.voiceInput, settings.listenWhileSpeaking) + speechRateCard(settings.speechRate);
+      timerCard(settings.timer) + voiceCard(settings) + speechRateCard(settings.speechRate);
   };
   const changed = (rerender) => {
     onChange(settings);
@@ -187,6 +213,9 @@ export function renderSettings(root, settings, onChange) {
     if (!btn) return;
     if (btn.dataset.preset) {
       settings.ops[btn.dataset.op].preset = btn.dataset.preset;
+      changed(true);
+    } else if (btn.dataset.engine) {
+      settings.speechEngine = btn.dataset.engine;
       changed(true);
     } else if (btn.dataset.timerPreset) {
       settings.timer.preset = btn.dataset.timerPreset;
@@ -201,6 +230,8 @@ export function renderSettings(root, settings, onChange) {
     else if (el.dataset.field === 'timer') settings.timer.enabled = el.checked;
     else if (el.dataset.field === 'voice') settings.voiceInput = el.checked;
     else if (el.dataset.field === 'listen-early') settings.listenWhileSpeaking = el.checked;
+    else if (el.dataset.field === 'echo') settings.echoCancellation = el.checked;
+    else if (el.dataset.field === 'noise') settings.noiseSuppression = el.checked;
     changed(true);
   });
 

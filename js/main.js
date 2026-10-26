@@ -3,6 +3,7 @@ import { initVoices, ensureMicPermission, Listener, setSpeechRate, speak } from 
 import { unlockAudio } from './sounds.js';
 import { enableWakeLock, disableWakeLock, wakeLockSupported } from './wakelock.js';
 import { Game } from './game.js';
+import { LocalListener } from './localSpeech.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -15,6 +16,7 @@ renderSettings($('settings-form'), settings, (s) => {
   saveSettings(s);
   setSpeechRate(s.speechRate);
   $('settings-error').textContent = '';
+  prepareModel().catch(() => {});
 });
 
 // Let the slider's new speed be heard once it's released.
@@ -106,6 +108,12 @@ const ui = {
   setListening(on) {
     $('mic').classList.toggle('on', on);
   },
+  // RMS level → 0..1 on a -60..-10 dB scale, shown as a ring around the mic icon.
+  setLevel(rms) {
+    const db = 20 * Math.log10(Math.max(rms, 1e-6));
+    const level = Math.min(1, Math.max(0, (db + 60) / 50));
+    $('mic').style.setProperty('--level', level.toFixed(2));
+  },
   flash(kind) {
     const screen = $('game-screen');
     screen.classList.remove('flash-correct', 'flash-wrong', 'flash-timeout');
@@ -116,7 +124,7 @@ const ui = {
   },
 };
 
-const listener = new Listener({
+const googleListener = new Listener({
   onResult: (alts) => game?.onVoice(alts),
   onListening: (on) => ui.setListening(on),
   onError: (error) => {
@@ -124,6 +132,39 @@ const listener = new Listener({
     else ui.setStatus('המיקרופון לא זמין – אפשר להקליד');
   },
 });
+
+const localListener = new LocalListener({
+  onResult: (result) => game?.onVoice(result),
+  onListening: (on) => ui.setListening(on),
+  onLevel: (rms) => ui.setLevel(rms),
+  onError: () => ui.setStatus('שגיאה בזיהוי הדיבור על המכשיר'),
+});
+
+const wantsLocalModel = () =>
+  settings.voiceInput && settings.speechEngine === 'local' && LocalListener.supported;
+
+function setModelStatus(text) {
+  $('model-status').textContent = text;
+  $('model-status').hidden = !text;
+}
+
+// Downloads (first time) or loads the on-device model in the background, showing progress.
+async function prepareModel() {
+  if (!wantsLocalModel()) {
+    setModelStatus('');
+    return;
+  }
+  try {
+    await localListener.loadModel((f) => {
+      if (f < 1) setModelStatus(`מוריד את מודל הדיבור… ${Math.round(f * 100)}%`);
+    });
+    setModelStatus('מודל הדיבור על המכשיר מוכן ✓');
+  } catch (e) {
+    setModelStatus(`טעינת מודל הדיבור נכשלה (${e.message}). אפשר לנסות שוב או לבחור "זיהוי של Google".`);
+    throw e;
+  }
+}
+prepareModel().catch(() => {});
 
 function showScreen(name) {
   $('settings-screen').hidden = name !== 'settings';
@@ -138,10 +179,29 @@ async function startGame() {
   }
   unlockAudio();
   const config = toGameConfig(settings);
-  config.voiceInput &&= Listener.supported;
-  if (config.voiceInput && !(await ensureMicPermission())) {
-    config.voiceInput = false;
-    warn('אין הרשאה למיקרופון – אפשר רק להקליד. אפשר לאשר בהגדרות האתר ב-Chrome.');
+  let listener = googleListener;
+  if (wantsLocalModel()) {
+    const startBtn = $('start-btn');
+    startBtn.disabled = true;
+    startBtn.textContent = 'טוען…';
+    try {
+      // open() creates its audio context right away, while this tap still counts.
+      await Promise.all([localListener.open(config.mic), prepareModel()]);
+      listener = localListener;
+    } catch (e) {
+      localListener.close();
+      warn(`הזיהוי על המכשיר לא הופעל (${e.message}) – עוברים לזיהוי של Google.`);
+    } finally {
+      startBtn.disabled = false;
+      startBtn.textContent = 'התחל ▶';
+    }
+  }
+  if (listener === googleListener) {
+    config.voiceInput &&= Listener.supported;
+    if (config.voiceInput && !(await ensureMicPermission())) {
+      config.voiceInput = false;
+      warn('אין הרשאה למיקרופון – אפשר רק להקליד. אפשר לאשר בהגדרות האתר ב-Chrome.');
+    }
   }
   $('mic').hidden = !config.voiceInput;
   showScreen('game');
@@ -156,6 +216,7 @@ async function startGame() {
 function exitGame() {
   game?.stop();
   game = null;
+  localListener.close(); // release the microphone
   ui.setPaused(false);
   disableWakeLock();
   showScreen('settings');

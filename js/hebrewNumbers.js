@@ -40,9 +40,13 @@ function isKnown(t) {
 // is a number word: "ושלוש" → "שלוש", "בשמונה" → "שמונה".
 const PREFIXES = 'והבלכמש';
 
-function normalizeToken(t) {
-  if (isKnown(t)) return t;
-  if (t.length > 2 && PREFIXES.includes(t[0]) && isKnown(t.slice(1))) return t.slice(1);
+// Kids often say ס for ש ("סבע", "סלוש", "עסרים"), so ס is also tried as ש.
+function normalizeToken(token) {
+  const variants = token.includes('ס') ? [token, token.replaceAll('ס', 'ש')] : [token];
+  for (const t of variants) {
+    if (isKnown(t)) return t;
+    if (t.length > 2 && PREFIXES.includes(t[0]) && isKnown(t.slice(1))) return t.slice(1);
+  }
   return null;
 }
 

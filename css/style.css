@@ -141,6 +141,17 @@ button {
   accent-color: var(--accent);
 }
 
+.engine-seg { margin-top: 10px; }
+
+.model-status {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 15px;
+  color: var(--muted);
+}
+
 .sub-row {
   display: flex;
   align-items: center;
@@ -190,6 +201,8 @@ button {
   font-size: 13px;
   color: var(--muted);
 }
+
+.app-version a { color: inherit; }
 
 .start-btn {
   display: block;
@@ -243,7 +256,9 @@ button {
   place-items: center;
   background: var(--surface);
   opacity: 0.4;
-  transition: opacity 0.2s, background-color 0.2s;
+  transition: opacity 0.2s, background-color 0.2s, box-shadow 0.1s;
+  /* --level (0..1) is the live microphone level */
+  box-shadow: 0 0 0 calc(var(--level, 0) * 8px) rgba(45, 198, 83, 0.45);
 }
 .mic.on {
   opacity: 1;
