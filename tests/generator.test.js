@@ -76,6 +76,17 @@ test('multiplication and division mostly avoid trivial problems', () => {
   }
 });
 
+test('problems with a zero are rare', () => {
+  for (const op of OPS) {
+    let zeros = 0;
+    for (let i = 0; i < N; i++) {
+      const p = createProblem(op, { min: 0, max: 10 });
+      if (p.a === 0 || p.b === 0 || p.answer === 0) zeros++;
+    }
+    assert.ok(zeros < N * 0.12, `${op} zeros: ${zeros}`);
+  }
+});
+
 test('generateProblem uses only enabled ops and avoids immediate repeats', () => {
   const ops = [{ id: 'add', min: 0, max: 10 }, { id: 'div', min: 0, max: 100 }];
   let prev = null;

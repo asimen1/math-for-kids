@@ -73,9 +73,20 @@ const SOLVE = {
   div: (a, b) => a / b,
 };
 
+// Problems with a 0 (0 + 7, 7 − 0, 7 − 7, 0 × 5) are too easy, and small ranges produce
+// them often (about 46% of additions in 0–10), so most are re-rolled. Ranges that only
+// allow zeros (0–0) still get one after the last attempt.
+const ZERO_KEEP = 0.1;
+const hasZero = (a, b, answer) => a === 0 || b === 0 || answer === 0;
+
 export function createProblem(op, range, rand = Math.random) {
   if (!BUILDERS[op]) throw new Error(`Unknown op: ${op}`);
-  const [a, b] = BUILDERS[op](range, rand);
+  let a;
+  let b;
+  for (let i = 0; i < 10; i++) {
+    [a, b] = BUILDERS[op](range, rand);
+    if (!hasZero(a, b, SOLVE[op](a, b)) || rand() < ZERO_KEEP) break;
+  }
   return {
     op, a, b, answer: SOLVE[op](a, b),
     display: `${a} ${SYMBOLS[op]} ${b}`,
