@@ -57,7 +57,8 @@ export class LocalListener {
   }
 
   // Opens the microphone. Call from a tap: the audio context needs a user gesture.
-  async open({ echoCancellation = true, noiseSuppression = true, autoGainControl = true } = {}) {
+  // `enhance` removes rumble below the voice range and raises quiet audio (see micWorklet.js).
+  async open({ echoCancellation = true, noiseSuppression = true, autoGainControl = true, enhance = true } = {}) {
     if (this.media) return;
     this.ctx = new AudioContext();
     const media = await navigator.mediaDevices.getUserMedia({
@@ -65,9 +66,17 @@ export class LocalListener {
     });
     await this.ctx.audioWorklet.addModule(new URL('./micWorklet.js', import.meta.url));
     if (this.ctx.state === 'suspended') await this.ctx.resume();
-    const source = this.ctx.createMediaStreamSource(media);
-    this.node = new AudioWorkletNode(this.ctx, 'mic-capture', { numberOfOutputs: 0 });
+    let source = this.ctx.createMediaStreamSource(media);
+    this.node = new AudioWorkletNode(this.ctx, 'mic-capture', {
+      numberOfOutputs: 0,
+      processorOptions: { normalize: enhance },
+    });
     this.node.port.onmessage = ({ data }) => this.onAudio(data);
+    if (enhance) {
+      const highpass = new BiquadFilterNode(this.ctx, { type: 'highpass', frequency: 120 });
+      source.connect(highpass);
+      source = highpass;
+    }
     source.connect(this.node);
     this.media = media;
   }
