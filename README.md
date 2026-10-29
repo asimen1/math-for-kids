@@ -40,7 +40,7 @@ There's no build step: the repo root is the site.
 |---|---|
 | a number (e.g. "עשרים ושלוש" or "23"), alone or inside a sentence | answer |
 | חזור / עוד פעם | repeat the question |
-| דלג | skip (reveals the answer) |
+| דלג / תשובה | skip (reveals the answer) |
 | עצור | pause |
 | המשך | resume |
 

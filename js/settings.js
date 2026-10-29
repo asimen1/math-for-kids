@@ -168,7 +168,7 @@ function voiceCard(settings) {
         <input type="checkbox" data-field="voice" ${voiceInput ? 'checked' : ''}>
       </label>
       <div class="op-body" ${voiceInput ? '' : 'hidden'}>
-        <p class="hint">אפשר לומר את התשובה (גם בתוך משפט), או: <b>חזור</b> · <b>דלג</b> · <b>עצור</b> · <b>המשך</b></p>
+        <p class="hint">אפשר לומר את התשובה (גם בתוך משפט), או: <b>חזור</b> · <b>דלג</b> (או <b>תשובה</b>) · <b>עצור</b> · <b>המשך</b></p>
         <div class="seg engine-seg">
           <button type="button" class="seg-btn" data-engine="local" ${pressed(local)}>זיהוי על המכשיר</button>
           <button type="button" class="seg-btn" data-engine="google" ${pressed(!local)}>זיהוי של Google</button>

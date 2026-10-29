@@ -4,7 +4,9 @@ import { tokenize } from './hebrewNumbers.js';
 const COMMANDS = {
   // Not "שוב": the app itself says "נסו שוב", and the mic may hear it.
   repeat: ['חזור', 'תחזור', 'חזרי', 'תחזרי', 'חזרה', 'עוד פעם'],
-  skip: ['דלג', 'תדלג', 'דלגי', 'תדלגי', 'דילוג', 'הבא', 'הלאה'],
+  // "תשובה" asks for the answer, which skipping reveals. Not "התשובה": the app says
+  // "התשובה היא…" when it reveals one, and hearing that would skip the next problem too.
+  skip: ['דלג', 'תדלג', 'דלגי', 'תדלגי', 'דילוג', 'הבא', 'הלאה', 'תשובה'],
   pause: ['עצור', 'תעצור', 'עצרי', 'תעצרי', 'עצירה', 'הפסק', 'תפסיק', 'הפסקה'],
   resume: ['המשך', 'תמשיך', 'המשיכי', 'תמשיכי', 'נמשיך', 'ממשיכים', 'קדימה'],
 };

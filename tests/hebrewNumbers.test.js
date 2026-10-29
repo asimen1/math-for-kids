@@ -75,6 +75,8 @@ test('commands', () => {
   assert.equal(parseCommand('תחזור על השאלה'), 'repeat');
   assert.equal(parseCommand('עוד פעם'), 'repeat');
   assert.equal(parseCommand('דלג'), 'skip');
+  assert.equal(parseCommand('תשובה'), 'skip');
+  assert.equal(parseCommand('התשובה היא 12'), null);
   assert.equal(parseCommand('עצור'), 'pause');
   assert.equal(parseCommand('המשך'), 'resume');
   assert.equal(parseCommand('שבע ועוד חמש'), null);
