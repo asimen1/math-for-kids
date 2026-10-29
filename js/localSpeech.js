@@ -3,6 +3,7 @@
 // recognizer there's no speech gate to miss quiet voices, no beep, and no restart gaps.
 // Same interface as Listener in speech.js, so the game doesn't care which one it uses.
 
+import { COMMAND_PHRASES } from './commands.js';
 import { loadModel } from './modelStore.js';
 
 // The model emits words about this long after they're spoken, so a phrase's first text
@@ -47,7 +48,9 @@ export class LocalListener {
           else if (data.type === 'error') reject(new Error(data.message));
         };
         worker.onerror = (e) => reject(new Error(e.message));
-        worker.postMessage({ type: 'init', files, numberBias: this.numberBias }, Object.values(files));
+        worker.postMessage({
+          type: 'init', files, numberBias: this.numberBias, commandPhrases: COMMAND_PHRASES,
+        }, Object.values(files));
       });
       worker.onmessage = ({ data }) => this.onWorkerMessage(data);
       this.worker = worker;

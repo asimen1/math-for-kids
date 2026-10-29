@@ -1,8 +1,9 @@
 // Web Worker running on-device Hebrew speech recognition (sherpa-onnx WASM + ivrit.ai's
 // streaming Zipformer2), so decoding never blocks the page.
 //
-// Messages in:  { type: 'init', files: { 'encoder.onnx': ArrayBuffer, ... }, phraseEndSec, numberBias }
-//               { type: 'configure', numberBias } – favor number words or not
+// Messages in:  { type: 'init', files: { 'encoder.onnx': ArrayBuffer, ... }, phraseEndSec, numberBias,
+//                 commandPhrases }
+//               { type: 'configure', numberBias } – favor number words and commands or not
 //               { type: 'audio', samples: Float32Array, sampleRate }
 //               { type: 'reset' } – drop everything heard so far
 // Messages out: { type: 'ready' } | { type: 'error', message }
@@ -22,13 +23,16 @@ const REPLAY_SEC = 1.5; // audio replayed into a new stream (covers the undecode
 // Number bias: beam search with these words boosted, so unclear speech comes out as "שבע"
 // rather than "שמע" or "שבת". The ו forms are listed too since they tokenize differently.
 // In tests with noisy, child-pitched speech it found 3–6 more answers in 30 at moderate noise.
+// Voice commands get a smaller boost: in the same tests they were heard about twice as often,
+// with no change to numbers.
 const NUMBER_WORDS = [
   'אחת', 'אחד', 'שתיים', 'שניים', 'שלוש', 'שלושה', 'ארבע', 'ארבעה', 'חמש', 'חמישה', 'שש', 'שישה',
   'שבע', 'שבעה', 'שמונה', 'תשע', 'תשעה', 'עשר', 'עשרה', 'עשרים', 'שלושים', 'ארבעים', 'חמישים',
   'שישים', 'שבעים', 'שמונים', 'תשעים', 'מאה', 'מאתיים', 'מאות', 'אלף', 'אלפים',
 ];
-const HOTWORDS = ['אפס', ...NUMBER_WORDS, ...NUMBER_WORDS.map((w) => `ו${w}`)];
+const NUMBER_HOTWORDS = ['אפס', ...NUMBER_WORDS, ...NUMBER_WORDS.map((w) => `ו${w}`)];
 const HOTWORDS_SCORE = 2;
+const COMMAND_SCORE = 1.5;
 
 let recognizer = null;
 let stream = null;
@@ -46,7 +50,9 @@ const recent = []; // [{ samples, sampleRate }] – roughly the last REPLAY_SEC 
 function init(data) {
   phraseEndSec = data.phraseEndSec ?? phraseEndSec;
   numberBias = data.numberBias ?? numberBias;
-  const { files } = data;
+  const { files, commandPhrases = [] } = data;
+  // One phrase per line; ":score" overrides HOTWORDS_SCORE for that line.
+  const hotwords = [...NUMBER_HOTWORDS, ...commandPhrases.map((p) => `${p} :${COMMAND_SCORE}`)];
   self.Module = {
     skipDataPackage: true, // the vendored build would otherwise download its bundled model
     locateFile: (path) => VENDOR + path,
@@ -56,7 +62,7 @@ function init(data) {
       }
       const text = (str) => new TextEncoder().encode(str);
       self.Module.FS_createDataFile('/', 'bpe.vocab', text(bpeVocab(files['bpe.model'])), true, false, false);
-      self.Module.FS_createDataFile('/', 'hotwords.txt', text(`${HOTWORDS.join('\n')}\n`), true, false, false);
+      self.Module.FS_createDataFile('/', 'hotwords.txt', text(`${hotwords.join('\n')}\n`), true, false, false);
     }],
     onRuntimeInitialized: () => {
       try {

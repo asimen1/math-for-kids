@@ -39,10 +39,12 @@ There's no build step: the repo root is the site.
 | Say | Action |
 |---|---|
 | a number (e.g. "עשרים ושלוש" or "23"), alone or inside a sentence | answer |
-| חזור / עוד פעם | repeat the question |
-| דלג / תשובה | skip (reveals the answer) |
-| עצור | pause |
-| המשך | resume |
+| חזור / עוד פעם / לא שמעתי / לא הבנתי / "מה?" | repeat the question |
+| דלג / תשובה / לא יודע / אין לי מושג | skip (reveals the answer) |
+| עצור / חכה / "רגע!" | pause |
+| המשך / יאללה / מוכן | resume |
+
+"מה" and "רגע" count only when said alone. The full lists are in `js/commands.js`.
 
 ## Speech recognition
 
@@ -51,7 +53,7 @@ Two engines, chosen in the settings:
 - **On-device (default):** the app records the microphone itself and decodes it in a Web Worker with [ivrit.ai's Hebrew streaming Zipformer2 model](https://huggingface.co/ivrit-ai/zipformer2-66m-streaming-he) (CC BY 4.0), running on [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) WebAssembly (`vendor/`).
   - It has no speech gate, so it hears quiet voices too. There's no beep and no restart gap.
   - The model (~73 MB) downloads once from Hugging Face and is kept in the browser's Cache Storage. After that it works offline.
-  - **העדפת מספרים** (number bias, on by default): decodes with beam search and boosts Hebrew number words, so unclear speech comes out as a number ("שבע") rather than a similar word ("שמע"). In offline tests with noisy, child-pitched speech it found 3–6 more answers out of 30 at moderate noise, with a few more wrong guesses in heavy noise.
+  - **העדפת מספרים ופקודות** (number bias, on by default): decodes with beam search and boosts Hebrew number words, so unclear speech comes out as a number ("שבע") rather than a similar word ("שמע"). In offline tests with noisy, child-pitched speech it found 3–6 more answers out of 30 at moderate noise, with a few more wrong guesses in heavy noise. Voice commands get a smaller boost, which about doubled how often they were heard.
   - **הגברת קולות שקטים ורחוקים** (on by default): a 120 Hz high-pass filter removes rumble, and a slow gain raises quiet audio so the loudest recent speech reaches about -20 dBFS (up to +30 dB). In the same tests it found about 2–4 more answers out of 30 at moderate noise, and more when the microphone level is very low.
   - Code: `js/localSpeech.js` (mic + worker), `js/asrWorker.js` (recognizer, phrase splitting), `js/micWorklet.js` (audio capture), `js/modelStore.js` (download/cache).
 - **Google:** Chrome's built-in Web Speech recognition. It needs internet.

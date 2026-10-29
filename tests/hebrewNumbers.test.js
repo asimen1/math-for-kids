@@ -79,6 +79,16 @@ test('commands', () => {
   assert.equal(parseCommand('התשובה היא 12'), null);
   assert.equal(parseCommand('עצור'), 'pause');
   assert.equal(parseCommand('המשך'), 'resume');
+  assert.equal(parseCommand('לא שמעתי'), 'repeat');
+  assert.equal(parseCommand('מה?'), 'repeat');
+  assert.equal(parseCommand('מה זה'), null);
+  assert.equal(parseCommand('אני לא יודעת'), 'skip');
+  assert.equal(parseCommand('אין לי מושג'), 'skip');
+  assert.equal(parseCommand('רגע'), 'pause');
+  assert.equal(parseCommand('רגע אני חושב'), null);
+  assert.equal(parseCommand('תחכי'), 'pause');
+  assert.equal(parseCommand('יאללה'), 'resume');
+  assert.equal(parseCommand('כדי להמשיך תגידו'), null);
   assert.equal(parseCommand('שבע ועוד חמש'), null);
   assert.equal(parseCommand('12'), null);
 });

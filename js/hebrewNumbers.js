@@ -191,10 +191,16 @@ function withinOneEdit(a, b) {
   return edits + (a.length - i) + (b.length - j) <= 1;
 }
 
+// Real words the speech model often hears instead of a number word, in noise or from kids.
+const MISHEARD = {
+  'שבת': 'שבע', 'שמע': 'שבע', 'שונה': 'שמונה', 'חיים': 'שתיים', 'עזרים': 'עשרים', 'עזרי': 'עשרים',
+};
+
 function lenientWord(token) {
   if (/^\d+$/.test(token) || normalizeToken(token) !== null) return token;
   const candidates = token.length > 2 && PREFIXES.includes(token[0]) ? [token, token.slice(1)] : [token];
   for (const t of candidates) {
+    if (MISHEARD[t]) return MISHEARD[t];
     const key = soundKey(t);
     if (BY_KEY.get(key)) return BY_KEY.get(key).word;
     if (key.length < 3) continue;

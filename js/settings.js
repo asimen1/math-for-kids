@@ -178,7 +178,7 @@ function voiceCard(settings) {
     : 'זיהוי הדיבור המובנה של Chrome. דורש אינטרנט.'}</p>
         ${local ? checkRow('echo', 'סינון הקול של האפליקציה (ביטול הד)', settings.echoCancellation) : ''}
         ${local ? checkRow('noise', 'סינון רעשי רקע', settings.noiseSuppression) : ''}
-        ${local ? checkRow('number-bias', 'העדפת מספרים בזיהוי (עוזר ברעש)', settings.numberBias) : ''}
+        ${local ? checkRow('number-bias', 'העדפת מספרים ופקודות בזיהוי (עוזר ברעש)', settings.numberBias) : ''}
         ${local ? checkRow('enhance', 'הגברת קולות שקטים ורחוקים', settings.enhanceAudio) : ''}
         <label class="sub-row">
           <span>להקשיב גם בזמן שהאפליקציה מדברת</span>

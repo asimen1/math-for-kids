@@ -71,6 +71,14 @@ test('lenient parsing handles sound-alike spellings', () => {
   assert.deepEqual(parseNumbersLenient('שלום'), []);
 });
 
+test('lenient parsing maps words the model often hears instead of numbers', () => {
+  assert.deepEqual(parseNumbersLenient('עשרים ושבת'), [27]);
+  assert.deepEqual(parseNumbersLenient('שמע עשרה'), [17]);
+  assert.deepEqual(parseNumbersLenient('ארבעים חיים'), [42]);
+  assert.deepEqual(parseNumbersLenient('עזרים'), [20]);
+  assert.deepEqual(parseNumbers('שבת'), []); // never strict: it can't make an answer wrong
+});
+
 test('ס is treated as ש in every position', () => {
   assert.deepEqual(parseNumbers('סבע'), [7]);
   assert.deepEqual(parseNumbers('סלוס'), [3]);
