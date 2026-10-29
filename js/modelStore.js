@@ -2,15 +2,17 @@
 // Model: ivrit-ai/zipformer2-66m-streaming-he (CC-BY-4.0), pinned to a fixed revision.
 
 const REVISION = 'ee769a2a13b887f91572eec349458bfb0fe79e7a';
-const BASE = `https://huggingface.co/ivrit-ai/zipformer2-66m-streaming-he/resolve/${REVISION}/sherpa-onnx/`;
+const BASE = `https://huggingface.co/ivrit-ai/zipformer2-66m-streaming-he/resolve/${REVISION}/`;
 const CACHE = 'shower-math-model-zipformer2-he-v1';
 
 // name in the recognizer's file system → file in the model repo, with its size for progress.
 const FILES = [
-  { name: 'encoder.onnx', path: 'encoder.int8.onnx', size: 70478964 },
-  { name: 'decoder.onnx', path: 'decoder.int8.onnx', size: 1049105 },
-  { name: 'joiner.onnx', path: 'joiner.int8.onnx', size: 771805 },
-  { name: 'tokens.txt', path: 'tokens.txt', size: 17086 },
+  { name: 'encoder.onnx', path: 'sherpa-onnx/encoder.int8.onnx', size: 70478964 },
+  { name: 'decoder.onnx', path: 'sherpa-onnx/decoder.int8.onnx', size: 1049105 },
+  { name: 'joiner.onnx', path: 'sherpa-onnx/joiner.int8.onnx', size: 771805 },
+  { name: 'tokens.txt', path: 'sherpa-onnx/tokens.txt', size: 17086 },
+  // The tokenizer, used to encode the number words the recognizer favors (see asrWorker.js).
+  { name: 'bpe.model', path: 'bpe.model', size: 262382 },
 ];
 const TOTAL = FILES.reduce((sum, f) => sum + f.size, 0);
 

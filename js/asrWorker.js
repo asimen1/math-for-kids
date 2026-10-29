@@ -1,7 +1,8 @@
 // Web Worker running on-device Hebrew speech recognition (sherpa-onnx WASM + ivrit.ai's
 // streaming Zipformer2), so decoding never blocks the page.
 //
-// Messages in:  { type: 'init', files: { 'encoder.onnx': ArrayBuffer, ... }, phraseEndSec }
+// Messages in:  { type: 'init', files: { 'encoder.onnx': ArrayBuffer, ... }, phraseEndSec, numberBias }
+//               { type: 'configure', numberBias } – favor number words or not
 //               { type: 'audio', samples: Float32Array, sampleRate }
 //               { type: 'reset' } – drop everything heard so far
 // Messages out: { type: 'ready' } | { type: 'error', message }
@@ -18,8 +19,20 @@ const VENDOR = new URL('../vendor/sherpa-onnx-1.13.7/', self.location).href;
 const RECYCLE_AFTER_SEC = 3; // replace the stream after this much time without new words
 const REPLAY_SEC = 1.5; // audio replayed into a new stream (covers the undecoded tail)
 
+// Number bias: beam search with these words boosted, so unclear speech comes out as "שבע"
+// rather than "שמע" or "שבת". The ו forms are listed too since they tokenize differently.
+// In tests with noisy, child-pitched speech it found 3–6 more answers in 30 at moderate noise.
+const NUMBER_WORDS = [
+  'אחת', 'אחד', 'שתיים', 'שניים', 'שלוש', 'שלושה', 'ארבע', 'ארבעה', 'חמש', 'חמישה', 'שש', 'שישה',
+  'שבע', 'שבעה', 'שמונה', 'תשע', 'תשעה', 'עשר', 'עשרה', 'עשרים', 'שלושים', 'ארבעים', 'חמישים',
+  'שישים', 'שבעים', 'שמונים', 'תשעים', 'מאה', 'מאתיים', 'מאות', 'אלף', 'אלפים',
+];
+const HOTWORDS = ['אפס', ...NUMBER_WORDS, ...NUMBER_WORDS.map((w) => `ו${w}`)];
+const HOTWORDS_SCORE = 2;
+
 let recognizer = null;
 let stream = null;
+let numberBias = true;
 // Words arrive in bursts, one per 1.28 s model chunk, so a phrase only ends after a longer gap.
 let phraseEndSec = 1.6;
 
@@ -32,6 +45,7 @@ const recent = []; // [{ samples, sampleRate }] – roughly the last REPLAY_SEC 
 
 function init(data) {
   phraseEndSec = data.phraseEndSec ?? phraseEndSec;
+  numberBias = data.numberBias ?? numberBias;
   const { files } = data;
   self.Module = {
     skipDataPackage: true, // the vendored build would otherwise download its bundled model
@@ -40,11 +54,13 @@ function init(data) {
       for (const [name, buffer] of Object.entries(files)) {
         self.Module.FS_createDataFile('/', name, new Uint8Array(buffer), true, false, false);
       }
+      const text = (str) => new TextEncoder().encode(str);
+      self.Module.FS_createDataFile('/', 'bpe.vocab', text(bpeVocab(files['bpe.model'])), true, false, false);
+      self.Module.FS_createDataFile('/', 'hotwords.txt', text(`${HOTWORDS.join('\n')}\n`), true, false, false);
     }],
     onRuntimeInitialized: () => {
       try {
-        recognizer = createOnlineRecognizer(self.Module, recognizerConfig());
-        newStream();
+        createRecognizer();
         self.postMessage({ type: 'ready' });
       } catch (e) {
         self.postMessage({ type: 'error', message: String(e) });
@@ -55,6 +71,59 @@ function init(data) {
     printErr: () => {},
   };
   importScripts(`${VENDOR}sherpa-onnx-asr.js`, `${VENDOR}sherpa-onnx-wasm-main-asr.js`);
+}
+
+// sherpa-onnx reads the tokenizer as "piece<TAB>score" lines; the model repo ships it as a
+// SentencePiece protobuf: ModelProto.pieces (field 1) = { piece (1): string, score (2): float }.
+function bpeVocab(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const view = new DataView(buffer);
+  const decoder = new TextDecoder();
+  let pos = 0;
+  const varint = () => {
+    let v = 0;
+    for (let shift = 0; ; shift += 7) {
+      const b = bytes[pos++];
+      v += (b & 0x7f) * 2 ** shift;
+      if (b < 0x80) return v;
+    }
+  };
+  // Calls onField(field, wireType, end) for each field up to `end`; unhandled fields are skipped.
+  const fields = (end, onField) => {
+    while (pos < end) {
+      const key = varint();
+      const field = Math.floor(key / 8);
+      const wire = key % 8;
+      if (wire === 0) {
+        varint();
+        continue;
+      }
+      const len = wire === 2 ? varint() : { 1: 8, 5: 4 }[wire];
+      const next = pos + len;
+      onField(field, wire, next);
+      pos = next;
+    }
+  };
+  const lines = [];
+  fields(bytes.length, (field, wire, end) => {
+    if (field !== 1 || wire !== 2) return;
+    let piece = '';
+    let score = 0;
+    fields(end, (f, w, e) => {
+      if (f === 1 && w === 2) piece = decoder.decode(bytes.subarray(pos, e));
+      else if (f === 2 && w === 5) score = view.getFloat32(pos, true);
+    });
+    lines.push(`${piece}\t${score}`);
+  });
+  return `${lines.join('\n')}\n`;
+}
+
+function createRecognizer() {
+  stream?.free();
+  stream = null;
+  recognizer?.free();
+  recognizer = createOnlineRecognizer(self.Module, recognizerConfig());
+  newStream();
 }
 
 function recognizerConfig() {
@@ -71,17 +140,17 @@ function recognizerConfig() {
       provider: 'cpu',
       debug: 0,
       modelType: '',
-      modelingUnit: 'cjkchar', // only used for hotwords, which this app doesn't use
-      bpeVocab: '',
+      modelingUnit: 'bpe', // how hotwords are split into tokens
+      bpeVocab: './bpe.vocab',
     },
-    decodingMethod: 'greedy_search',
+    decodingMethod: numberBias ? 'modified_beam_search' : 'greedy_search',
     maxActivePaths: 4,
     enableEndpoint: 0,
     rule1MinTrailingSilence: 2.4,
     rule2MinTrailingSilence: 1.2,
     rule3MinUtteranceLength: 20,
-    hotwordsFile: '',
-    hotwordsScore: 1.5,
+    hotwordsFile: numberBias ? './hotwords.txt' : '',
+    hotwordsScore: HOTWORDS_SCORE,
     ctcFstDecoderConfig: { graph: '', maxActive: 3000 },
     ruleFsts: '',
     ruleFars: '',
@@ -149,6 +218,10 @@ self.onmessage = ({ data }) => {
     if (data.type === 'init') init(data);
     else if (data.type === 'audio') accept(data.samples, data.sampleRate);
     else if (data.type === 'reset' && recognizer) newStream();
+    else if (data.type === 'configure' && recognizer && data.numberBias !== numberBias) {
+      numberBias = data.numberBias;
+      createRecognizer();
+    }
   } catch (e) {
     self.postMessage({ type: 'error', message: `${e}\n${e.stack ?? ''}` });
   }

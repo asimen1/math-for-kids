@@ -27,6 +27,13 @@ export class LocalListener {
     this.session = 0;
     this.startedAt = 0;
     this.phraseOpen = false;
+    this.numberBias = true;
+  }
+
+  // Favor number words when decoding (see asrWorker.js). Applies now or when the model loads.
+  configure({ numberBias }) {
+    this.numberBias = numberBias;
+    this.worker?.postMessage({ type: 'configure', numberBias });
   }
 
   // Downloads (or reads from cache) the model and starts the recognizer. Safe to call often.
@@ -40,7 +47,7 @@ export class LocalListener {
           else if (data.type === 'error') reject(new Error(data.message));
         };
         worker.onerror = (e) => reject(new Error(e.message));
-        worker.postMessage({ type: 'init', files }, Object.values(files));
+        worker.postMessage({ type: 'init', files, numberBias: this.numberBias }, Object.values(files));
       });
       worker.onmessage = ({ data }) => this.onWorkerMessage(data);
       this.worker = worker;

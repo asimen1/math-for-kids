@@ -23,6 +23,7 @@ export function defaultSettings() {
     speechEngine: 'local', // 'local' (on-device model) | 'google' (Chrome's recognizer)
     echoCancellation: true,
     noiseSuppression: true,
+    numberBias: true,
     speechRate: SPEECH_RATE.default,
   };
 }
@@ -39,7 +40,7 @@ export function loadSettings() {
       defaults.listenWhileSpeaking = saved.listenWhileSpeaking;
     }
     if (['local', 'google'].includes(saved.speechEngine)) defaults.speechEngine = saved.speechEngine;
-    for (const key of ['echoCancellation', 'noiseSuppression']) {
+    for (const key of ['echoCancellation', 'noiseSuppression', 'numberBias']) {
       if (typeof saved[key] === 'boolean') defaults[key] = saved[key];
     }
     if (saved.speechRate >= SPEECH_RATE.min && saved.speechRate <= SPEECH_RATE.max) {
@@ -92,6 +93,7 @@ export function toGameConfig(settings) {
     listenWhileSpeaking: settings.listenWhileSpeaking,
     speechEngine: settings.speechEngine,
     mic: { echoCancellation: settings.echoCancellation, noiseSuppression: settings.noiseSuppression },
+    numberBias: settings.numberBias,
   };
 }
 
@@ -171,6 +173,7 @@ function voiceCard(settings) {
     : 'זיהוי הדיבור המובנה של Chrome. דורש אינטרנט.'}</p>
         ${local ? checkRow('echo', 'סינון הקול של האפליקציה (ביטול הד)', settings.echoCancellation) : ''}
         ${local ? checkRow('noise', 'סינון רעשי רקע', settings.noiseSuppression) : ''}
+        ${local ? checkRow('number-bias', 'העדפת מספרים בזיהוי (עוזר ברעש)', settings.numberBias) : ''}
         <label class="sub-row">
           <span>להקשיב גם בזמן שהאפליקציה מדברת</span>
           <input type="checkbox" data-field="listen-early" ${listenWhileSpeaking ? 'checked' : ''}>
@@ -232,6 +235,7 @@ export function renderSettings(root, settings, onChange) {
     else if (el.dataset.field === 'listen-early') settings.listenWhileSpeaking = el.checked;
     else if (el.dataset.field === 'echo') settings.echoCancellation = el.checked;
     else if (el.dataset.field === 'noise') settings.noiseSuppression = el.checked;
+    else if (el.dataset.field === 'number-bias') settings.numberBias = el.checked;
     changed(true);
   });
 

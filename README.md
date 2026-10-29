@@ -51,6 +51,7 @@ Two engines, chosen in the settings:
 - **On-device (default):** the app records the microphone itself and decodes it in a Web Worker with [ivrit.ai's Hebrew streaming Zipformer2 model](https://huggingface.co/ivrit-ai/zipformer2-66m-streaming-he) (CC BY 4.0), running on [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) WebAssembly (`vendor/`).
   - It has no speech gate, so it hears quiet voices too. There's no beep and no restart gap.
   - The model (~73 MB) downloads once from Hugging Face and is kept in the browser's Cache Storage. After that it works offline.
+  - **העדפת מספרים** (number bias, on by default): decodes with beam search and boosts Hebrew number words, so unclear speech comes out as a number ("שבע") rather than a similar word ("שמע"). In offline tests with noisy, child-pitched speech it found 3–6 more answers out of 30 at moderate noise, with a few more wrong guesses in heavy noise.
   - Code: `js/localSpeech.js` (mic + worker), `js/asrWorker.js` (recognizer, phrase splitting), `js/micWorklet.js` (audio capture), `js/modelStore.js` (download/cache).
 - **Google:** Chrome's built-in Web Speech recognition. It needs internet.
 

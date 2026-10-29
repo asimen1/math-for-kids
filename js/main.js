@@ -186,6 +186,7 @@ async function startGame() {
     startBtn.textContent = 'טוען…';
     try {
       // open() creates its audio context right away, while this tap still counts.
+      localListener.configure({ numberBias: config.numberBias });
       await Promise.all([localListener.open(config.mic), prepareModel()]);
       listener = localListener;
     } catch (e) {
